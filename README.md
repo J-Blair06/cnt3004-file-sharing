@@ -81,7 +81,7 @@ cd cnt3004-file-sharing
 | Jaci Blair | [@J-Blair06](https://github.com/J-Blair06) | |
 | Lillian MaGill | [@L-MaGill](https://github.com/L-MaGill) | |
 | Gabriela Sosa | [@GSosa36](https://github.com/GSosa36) | |
-| Connor Brown | [@cbrown0794](https://github.com/cbrown0794) | |
+| Connor Brown | [@cbrown0794](https://github.com/cbrown0794) |Testing, AI & Results|
 
 ## Security Note
 
