@@ -1,13 +1,26 @@
 # client.py
 
 import socket
+import sys
 
 # function
 
 def connect():
     # TODO (group 2) creates the socket and connects to the server. 
     # prints a clear error if the server can't be reached.
-    pass
+
+    soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    HOST = "127.0.0.1"
+    PORT = 5001
+
+    try:
+        soc.connect((HOST, PORT))
+
+    except:
+        print("Connection Error")
+        sys.exit()
+
+    return soc
 
 def login():
     # TODO (group 3) akss for the username and password, sends 
@@ -47,6 +60,7 @@ def predict_transfer_time():
 def main():
     # TODO (group 2) the input loop: reads what the user types, splits it into a
     # command and arguments, calls the right function, and stops on QUIT
+
     pass
 
 if __name__=="__main__":
