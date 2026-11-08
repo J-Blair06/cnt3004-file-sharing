@@ -30,15 +30,54 @@ def login():
     # LOGIN without a clear-text password, and reports OK or ERR
     pass
 
-def do_dir():
+def do_dir(soc):
     # TODO (group 2) sends DIR, reads the size, reads that many bytes, and
     # prints the listing
-    pass
+    
+    #sends request to server
+    soc.send(b'DIR')
 
-def do_upload():
+    #reads the expected size and listing from server
+    expectedsize = int(soc.recv(1024).decode())
+    listing = soc.recv(1024)
+
+    #if the listing is larger than 1024 bytes, it will keep receiving until it matches the expected size
+    while len(listing) < expectedsize:
+        moreListing = soc.recv(1024)
+
+        #if the server sends no more data, it will break the loop
+        if not moreListing:
+            break
+
+        listing += moreListing
+
+    #checks if the received sizes matches the expected size, if it does not match it will print an error message
+    if(len(listing) != expectedsize):
+        print("Error: received size does not match expected size.")
+
+    #prints the listing
+    print(listing.decode())
+        
+        
+        
+        
+
+
+def do_upload(soc, argument):
     # TODO (group 2) sends UPLOAD with the name and size, handles
     # OK or EXISTS (asks user yes or no), sends the file in chunks, and
     # reads the final reply
+
+    filename = argument
+
+    with open(filename, 'rb') as f:
+        data = f.read()
+    
+    soc.send(f'UPLOAD {argument}'.encode())
+    soc.send(len(data).to_bytes(4, byteorder='big'))
+    soc.send(data)
+
+    
     pass
 
 def do_download():
@@ -90,10 +129,10 @@ def main():
             break
         
         elif command == "DIR":
-            do_dir()
+            do_dir(soc)
 
         elif command == "UPLOAD":
-            do_upload(argument)
+            do_upload(soc, argument)
 
         elif command  == "DOWNLOAD":
             do_download(argument)
@@ -108,7 +147,7 @@ def main():
             print("Invalid command. Please try again.")
 
     #closes connection to server
-    soc.send(b'--QUIT--')
+    soc.send(b'QUIT')
     soc.close()
 
 
