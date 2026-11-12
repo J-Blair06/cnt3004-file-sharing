@@ -94,6 +94,7 @@ def do_dir(soc):
 
     #prints the listing
     print(listing.decode())
+    
         
         
         
