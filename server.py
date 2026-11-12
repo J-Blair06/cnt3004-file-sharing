@@ -14,7 +14,23 @@ def handle_client(conn, addr):
     # TODO (group 1) run once per client in its own thread. Track the
     # clients logged-in state, read one command line at a time, pass it
     # to handle_command, and close the connection on QUIT or disconnect.
-    pass
+    line = b""
+    while True:
+        byte = conn.recv(1)
+        if byte == b"":
+            print("connection closed")
+            conn.close()
+            return
+        if byte == b"\n":
+            print("end of line reached")
+            break
+        
+        line = line + byte
+    
+    command = line.decode().strip() #this is our decoded and stripped command
+    print(command) #this is to visually see what command was sent
+    conn.close()
+        
 
 def handle_command(conn, line):
     # TODO (group 1) split the line into a command and args, refuse
@@ -59,8 +75,14 @@ def main():
     # TODO (group 1): create the listening socket, bind to HOST and PORT,
     # start the analysis module, then accept clients and start a
     # handle_client thread for each.
-    pass
-
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #getting the phone
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind((HOST, PORT)) #getting the phone number
+    server.listen() #server starts to listen
+    print("server is ready and listening")
+    conn, addr = server.accept() #returns new line to the caller and the caller's address
+    print("server accepted", addr)
+    handle_client(conn, addr)
 
 if __name__=="__main__":
     main()
