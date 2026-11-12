@@ -14,7 +14,23 @@ def handle_client(conn, addr):
     # TODO (group 1) run once per client in its own thread. Track the
     # clients logged-in state, read one command line at a time, pass it
     # to handle_command, and close the connection on QUIT or disconnect.
-    pass
+    line = b""
+    while True:
+        byte = conn.recv(1)
+        if byte == b"":
+            print("connection closed")
+            conn.close()
+            return
+        if byte == b"\n":
+            print("end of line reached")
+            break
+        
+        line = line + byte
+    
+    command = line.decode().strip() #this is our decoded and stripped command
+    print(command) #this is to visually see what command was sent
+    conn.close()
+        
 
 def handle_command(conn, line):
     # TODO (group 1) split the line into a command and args, refuse
@@ -66,8 +82,7 @@ def main():
     print("server is ready and listening")
     conn, addr = server.accept() #returns new line to the caller and the caller's address
     print("server accepted", addr)
-    conn.close()
-    server.close()
+    handle_client(conn, addr)
 
 if __name__=="__main__":
     main()
