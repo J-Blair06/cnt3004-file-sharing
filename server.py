@@ -59,8 +59,15 @@ def main():
     # TODO (group 1): create the listening socket, bind to HOST and PORT,
     # start the analysis module, then accept clients and start a
     # handle_client thread for each.
-    pass
-
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #getting the phone
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind((HOST, PORT)) #getting the phone number
+    server.listen() #server starts to listen
+    print("server is ready and listening")
+    conn, addr = server.accept() #returns new line to the caller and the caller's address
+    print("server accepted", addr)
+    conn.close()
+    server.close()
 
 if __name__=="__main__":
     main()
