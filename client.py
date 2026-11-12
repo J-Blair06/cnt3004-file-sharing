@@ -2,6 +2,7 @@
 
 import socket
 import sys
+import os
 
 # function
 
@@ -35,11 +36,18 @@ def do_dir(soc):
     # prints the listing
     
     #sends request to server
-    soc.send(b'DIR')
+    soc.send(b'DIR\n')
 
     #reads the expected size and listing from server
-    expectedsize = int(soc.recv(1024).decode())
-    listing = soc.recv(1024)
+    part1 = soc.recv(1024).decode().strip()
+    part2 = part1.split()
+
+    if len(part2) < 2 or part2[0] != "OK":
+        print(f"Error: server responded with {part1}")
+        return
+    
+    expectedsize = int(part2[1])
+    listing = b''
 
     #if the listing is larger than 1024 bytes, it will keep receiving until it matches the expected size
     while len(listing) < expectedsize:
@@ -70,15 +78,52 @@ def do_upload(soc, argument):
 
     filename = argument
 
-    with open(filename, 'rb') as f:
-        data = f.read()
-    
-    soc.send(f'UPLOAD {argument}'.encode())
-    soc.send(len(data).to_bytes(4, byteorder='big'))
-    soc.send(data)
+    #get size and change it to bytes
+    size = os.path.getsize(filename)
+    size = size.to_bytes(4, byteorder='big')
+
+    #send upload request and filename and size to server
+    message = b'UPLOAD ' + filename.encode() +b' ' + size + b'\n'
+    soc.send(message)
+
+    #response from server
+    response =soc.recv(1024).decode().strip()
+
+    #if response is EXISTS, ask user if they want to overwrite the file
+    #if yes it will overwrite the file, if no it will cancel the upload
+    if response == "EXISTS":
+        answer = input(f"{filename} already exists on the server. Do you want to overwrite it? (yes/no): ")
+        if answer.lower() != "yes":
+            print("Upload cancelled.")
+            return
+        else:
+            soc.send(b'OVERWRITE\n')
+
+    #if neither OK or EXISTS, then it will print an error message
+    elif response != "OK" and response != "EXISTS":
+        print(f"Error: server responded with {response}")
+        return
+
+    #opens file and sends it to the server
+    file = open(filename, 'rb')
+    while True:
+        section = file.read(1024)
+        if not section:
+            break
+        soc.send(section)
+    file.close()
+
+    #response from server after upload, if ok it will print successful
+    #if not it will print an error message
+    final_response = soc.recv(1024).decode().strip()
+    if final_response == "OK":
+        print(f"{filename} uploaded successfully.")
+
+    else:
+        print(f"Error: server responded with {final_response}")
+
 
     
-    pass
 
 def do_download():
     # TODO (group 2) sends DOWNLOAD, reads the size, receives that many bytes
@@ -109,6 +154,8 @@ def main():
     #ask for command
     print("Please enter a command (DIR, UPLOAD, DOWNLOAD, DELETE, SUBFOLDER, QUIT):")
 
+
+
     #while loop that asks for commands until the user quits
     while True:
         message = input(" -> ")
@@ -124,10 +171,16 @@ def main():
 
         argument = parts[1] if len(parts) > 1 else ""
 
+
         #checks if any of the commands match, if they do it will call that function, otherwise it will print an error message
         if command == "QUIT":
             break
-        
+
+        #before other commands, it will check if argument contains spaces
+        elif ' ' in argument:
+            print("Error: file names cannot contain spaces.")
+            continue
+
         elif command == "DIR":
             do_dir(soc)
 
@@ -135,19 +188,19 @@ def main():
             do_upload(soc, argument)
 
         elif command  == "DOWNLOAD":
-            do_download(argument)
+            do_download(soc, argument)
 
         elif command == "DELETE":
-            do_delete(argument)
+            do_delete(soc, argument)
 
         elif command == "SUBFOLDER":
-            do_subfolder(argument)
+            do_subfolder(soc,argument)
 
         else:
             print("Invalid command. Please try again.")
 
     #closes connection to server
-    soc.send(b'QUIT')
+    soc.send(b'QUIT\n')
     soc.close()
 
 
