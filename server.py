@@ -29,6 +29,7 @@ def handle_client(conn, addr):
     
     command = line.decode().strip() #this is our decoded and stripped command
     print(command) #this is to visually see what command was sent
+    conn.sendall("OK got your message\n".encode())
     conn.close()
         
 
