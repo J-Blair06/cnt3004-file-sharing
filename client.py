@@ -162,12 +162,50 @@ def do_upload(soc, argument):
 
     
 
-def do_download():
+def do_download(soc, argument):
     # TODO (group 2) sends DOWNLOAD, reads the size, receives that many bytes
     # in chunks, and saves the file. prints any error.
-    pass
+    
+    #argument is saved as filenmae
+    filename = argument
 
-def do_delete():
+    #sends a download request to the server
+    soc.send(f'DOWNLOAD {filename}\n'.encode())
+
+    #reads the expected size and response from server
+    part1 = soc.recv(1024).decode().strip()
+    part2 = part1.split()
+
+    if len(part2) < 2 or part2[0] != "OK":
+        print(f"Error: server responded with {part1}")
+        return
+
+    #saves expected size and creates variable for received size
+    expectedsize = int(part2[1])
+    receivedsize = 0
+
+    #opens a file to write the received data into
+    with open(filename, 'wb') as file:
+        while receivedsize < expectedsize:
+            data = soc.recv(1024)
+
+        #if the server sends no more data, it will break the loop
+            if not data:
+                break
+
+            file.write(data)
+            receivedsize += len(data)
+
+    #checks if the received size matches the expected size
+    #if they do not match it will print an error
+    if receivedsize != expectedsize:
+        print("Error: received size does not match expected size.")
+    else:
+        print(f"{filename} downloaded successfully.")
+
+
+
+def do_delete(soc, argument):
     # TODO (group 2) sends DELETE and prints the server's reply
     filename = argument
 
@@ -177,7 +215,7 @@ def do_delete():
     print(f"Server response: {response}")
 
 
-def do_subfolder():
+def do_subfolder(soc, argument):
     # TODO (group 2) sends SUBFOLDER create or delete with the path
     # and prints the reply
     pass
@@ -220,9 +258,10 @@ def main():
             break
 
         #before other commands, it will check if argument contains spaces
-        elif ' ' in argument:
-            print("Error: file names cannot contain spaces.")
-            continue
+        if argument and command in ["UPLOAD", "DOWNLOAD", "DELETE", "SUBFOLDER"]:    
+            if ' ' in argument:
+                print("Error: file names cannot contain spaces.")
+                continue
 
         elif command == "DIR":
             do_dir(soc)
