@@ -93,7 +93,30 @@ def do_dir(conn):
 def do_upload(conn, args):
     # TODO (group 1): handle UPLOAD name size. Reply OK or EXISTS, handle
     # YES/NO, receive exactly size bytes in chunks, then reply OK or ERR.
-    pass 
+    if len(args) != 2:
+        conn.sendall(b"ERR bad command\n")
+        return
+    try:
+        size = int(args[1]) 
+    except ValueError:
+        conn.sendall(b"ERR bad size\n")
+        return
+    if size < 0:
+        conn.sendall(b"ERR bad size\n")
+        return
+
+    filename = args[0]
+
+    if "/" in filename or "\\" in filename or ".." in filename:
+        conn.sendall(b"ERR invalid path\n")
+        return
+
+    path = os.path.join(STORAGE_DIR, filename)
+
+    if os.path.exists(path):
+        conn.sendall(b"EXISTS\n")
+    else:
+        conn.sendall(b"OK\n")
 
 def do_download(conn, args):
     # TODO (group 1): reply ERR file not found, or OK size followed by
@@ -119,6 +142,7 @@ def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #getting the phone
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT)) #getting the phone number
+    os.makedirs(STORAGE_DIR, exist_ok=True)
     server.listen() #server starts to listen
     print("server is ready and listening")
     while True:
