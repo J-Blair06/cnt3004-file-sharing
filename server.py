@@ -10,29 +10,37 @@ STORAGE_DIR = "server_storage" # the folder the server keeps files in. Relative 
 CHUNK_SIZE = 65536 # bytes to send or receive at a time (64 KB) needed for task B10.
 
 # functions
-def handle_client(conn, addr):
-    # TODO (group 1) run once per client in its own thread. Track the
-    # clients logged-in state, read one command line at a time, pass it
-    # to handle_command, and close the connection on QUIT or disconnect.
+def read_line(conn):
     line = b""
     while True:
         byte = conn.recv(1)
         if byte == b"":
             print("connection closed")
-            conn.close()
-            return
+            return None
         if byte == b"\n":
             print("end of line reached")
             break
-        
         line = line + byte
-    
-    command = line.decode().strip() #this is our decoded and stripped command
-    print(command) #this is to visually see what command was sent
-    conn.sendall("OK got your message\n".encode())
-    conn.close()
-        
+    command = line.decode().strip()
+    return command
 
+def handle_client(conn, addr):
+    # TODO (group 1) run once per client in its own thread. Track the
+    # clients logged-in state, read one command line at a time, pass it
+    # to handle_command, and close the connection on QUIT or disconnect.
+    while True:
+        command = read_line(conn)
+        if command is None:
+            break
+        elif command.upper() == "QUIT":
+            conn.sendall(b"OK\n")
+            break
+        else:
+            print(command)
+            conn.sendall(b"OK\n")
+    conn.close()
+
+        
 def handle_command(conn, line):
     # TODO (group 1) split the line into a command and args, refuse
     # everything except LOGIN until the client is logged in, then call
@@ -81,9 +89,10 @@ def main():
     server.bind((HOST, PORT)) #getting the phone number
     server.listen() #server starts to listen
     print("server is ready and listening")
-    conn, addr = server.accept() #returns new line to the caller and the caller's address
-    print("server accepted", addr)
-    handle_client(conn, addr)
+    while True:
+        conn, addr = server.accept() #returns new line to the caller and the caller's address
+        print("server accepted", addr)
+        handle_client(conn, addr)
 
 if __name__=="__main__":
     main()
