@@ -1,4 +1,4 @@
-# authentication.py
+# auth.py
 import hashlib
 import json
 import secrets
@@ -32,8 +32,10 @@ def save_users(users):
         json.dump(users, file, indent=2)
 
 def add_user(username, password):
+    if not password or any(c.isspace() for c in password):
+        return False
     username = "_".join(username.split())
-    if not username or " " in username:
+    if not username:
         return False
     salt = secrets.token_hex(16)
     users = load_users()
