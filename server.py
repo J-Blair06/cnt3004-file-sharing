@@ -28,6 +28,7 @@ def handle_client(conn, addr):
     # TODO (group 1) run once per client in its own thread. Track the
     # clients logged-in state, read one command line at a time, pass it
     # to handle_command, and close the connection on QUIT or disconnect.
+    session = {"logged_in": True, "username": None} #TODO set to false once do _login works ****************************************************** This is super important
     while True:
         command = read_line(conn)
         if command is None:
@@ -37,15 +38,22 @@ def handle_client(conn, addr):
             break
         else:
             print(command)
-            conn.sendall(b"OK\n")
+            handle_command(conn, command, session)
     conn.close()
 
         
-def handle_command(conn, line):
+def handle_command(conn, line, session):
     # TODO (group 1) split the line into a command and args, refuse
     # everything except LOGIN until the client is logged in, then call
     # the matching do_function. Reply ERR bad command for unknown ones.
-    pass
+    parts = line.split()
+    if not parts:
+        conn.sendall(b"ERR bad command\n")
+        return
+    command = parts[0].upper()
+    args = parts[1:]
+    print(command, args)
+    conn.sendall(b"ERR bad command\n")
 
 def do_login(conn, args):
     # TODO (group 3): check the username and credential without ever
