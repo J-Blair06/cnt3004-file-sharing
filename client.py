@@ -207,7 +207,13 @@ def do_download(soc, argument):
 
 def do_delete(soc, argument):
     # TODO (group 2) sends DELETE and prints the server's reply
-    pass
+    filename = argument
+
+    soc.send(f'DELETE {filename}\n'.encode())
+
+    response = soc.recv(1024).decode().strip()
+    print(f"Server response: {response}")
+
 
 def do_subfolder(soc, argument):
     # TODO (group 2) sends SUBFOLDER create or delete with the path
