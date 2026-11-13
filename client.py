@@ -2,6 +2,8 @@
 
 import socket
 import sys
+import hashlib
+import getpass
 import os
 
 # function
@@ -26,10 +28,44 @@ def connect():
     #socket is returned
     return soc
 
-def login():
+def login(soc):
     # TODO (group 3) akss for the username and password, sends 
     # LOGIN without a clear-text password, and reports OK or ERR
-    pass
+    print("Please enter your username and password.")
+    username = input("Username: ").strip()
+    password = getpass.getpass("Password: ")
+
+    if not username or not password or " " in username:
+        print("Username and password are required, and username cannot contain spaces.")
+        return False
+
+    try:
+        soc.send(f'LOGIN {username}\n'.encode())
+        reply = soc.recv(1024).decode().strip().split()
+
+
+        if len(reply) != 2 or reply[0] != "OK":
+            print("Wrong username or password")
+            return False
+
+        salt = bytes.fromhex(reply[1])
+        key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200000).hex()
+        soc.send(f'PASS {key}\n'.encode())
+
+        reply = soc.recv(1024).decode().strip()
+    except (ConnectionError, OSError):
+        print("Login Failed: Lost Connection")
+        return False
+
+    if reply == "OK":
+        print("Logged in.")
+        return True
+
+    print("Login Failed: Wrong username or password")
+    return False
+    
+
+  
 
 def do_dir(soc):
     # TODO (group 2) sends DIR, reads the size, reads that many bytes, and
@@ -65,6 +101,7 @@ def do_dir(soc):
 
     #prints the listing
     print(listing.decode())
+    
         
         
         
