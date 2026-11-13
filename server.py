@@ -44,7 +44,7 @@ def handle_client(conn, addr):
         
 def handle_command(conn, line, session):
     # TODO (group 1) split the line into a command and args, refuse
-    # everything except LOGIN until the client is logged in, then call
+    # everything except LOGIN and PASS until the client is logged in, then call
     # the matching do_function. Reply ERR bad command for unknown ones.
     parts = line.split()
     if not parts:
@@ -53,9 +53,33 @@ def handle_command(conn, line, session):
     command = parts[0].upper()
     args = parts[1:]
     print(command, args)
-    conn.sendall(b"ERR bad command\n")
 
-def do_login(conn, args):
+    if not session["logged_in"] and command not in ("LOGIN", "PASS"):
+        conn.sendall(b"ERR not logged in\n")
+        return
+
+    if command in ("LOGIN", "PASS"):
+        do_login(conn, command, args, session)
+
+    elif command == "DIR":
+        do_dir(conn)
+    
+    elif command == "UPLOAD":
+        do_upload(conn, args)
+
+    elif command == "DOWNLOAD":
+        do_download(conn, args)
+
+    elif command == "DELETE":
+        do_delete(conn, args)
+
+    elif command == "SUBFOLDER":
+        do_subfolder(conn, args)
+
+    else:
+        conn.sendall(b"ERR bad command\n")
+    
+def do_login(conn, command, args, session):
     # TODO (group 3): check the username and credential without ever
     # receiving a clear-text password. Reply OK or ERR login failed.
     # this i think has to wait for handle_command to finish ^
