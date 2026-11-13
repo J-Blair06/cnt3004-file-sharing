@@ -115,8 +115,19 @@ def do_upload(conn, args):
 
     if os.path.exists(path):
         conn.sendall(b"EXISTS\n")
+        answer = read_line(conn)
+        if answer is None:
+            return
+        if answer.upper() == "NO": #check if the file doesn't previously exist 
+            conn.sendall(b"OK cancelled\n")
+            return
+        elif answer.upper() != "YES": #check if the file has a answer other than yes or no
+            conn.sendall(b"ERR bad command\n")
+            return
+        #must be yes if not the previous two
     else:
         conn.sendall(b"OK\n")
+    #TODO receive size bytes and write them to path
 
 def do_download(conn, args):
     # TODO (group 1): reply ERR file not found, or OK size followed by
