@@ -207,10 +207,14 @@ def do_download(soc, argument):
 
 def do_delete(soc, argument):
     # TODO (group 2) sends DELETE and prints the server's reply
+
+    #saves the argument as filenmae
     filename = argument
 
+    #sends delete request to server
     soc.send(f'DELETE {filename}\n'.encode())
 
+    #listens for a response and prints it
     response = soc.recv(1024).decode().strip()
     print(f"Server response: {response}")
 
@@ -218,7 +222,15 @@ def do_delete(soc, argument):
 def do_subfolder(soc, argument):
     # TODO (group 2) sends SUBFOLDER create or delete with the path
     # and prints the reply
-    pass
+
+    #Makes subfolder request
+    soc.send(f'SUBFOLDER {argument}\n'.encode()) #remember argument needs to be split on server side, sents as foldername and action (create or delete)
+
+    #listens for a response and prints it
+    response = soc.recv(1024).decode().strip()
+    print(f'Server response: {response}')
+
+
 
 def predict_transfer_time():
     # TODO (group 4) extra credit. calls the LLM API and shows the
