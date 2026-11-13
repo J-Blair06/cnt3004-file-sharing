@@ -92,7 +92,8 @@ def main():
     while True:
         conn, addr = server.accept() #returns new line to the caller and the caller's address
         print("server accepted", addr)
-        handle_client(conn, addr)
+        threading.Thread(target = handle_client, args = (conn, addr), daemon=True).start()
+        
 
 if __name__=="__main__":
     main()
