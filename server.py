@@ -159,7 +159,42 @@ def do_delete(conn, args):
 def do_subfolder(conn, args):
     # TODO (group 2): handle SUBFOLDER create/delete path. Reject paths 
     # with .. or a leading / (ERR invalid path), then reply OK or ERR.
-    pass
+    
+    #splits args into foldername and action
+    parts = args[0].split()
+
+    foldername = parts[0]
+    action = parts[1].upper()
+
+    #checks if foldername starts with / or has .. in it
+    #if it does then it will send an error message
+    if foldername.startswith("/") or ".." in foldername:
+
+        conn.sendall(b"ERR invalid path\n")
+        return
+
+    # creates the path to the folder in the directory
+    dir = os.path.join(STORAGE_DIR, foldername)
+
+    #checks what the action is
+    #if create it will create the folder
+    #if delete it will delete the folder
+    #if it cant do either it will send an error message
+    if action == "CREATE":
+        try:
+            os.makedirs(dir, exist_ok=True)
+            conn.sendall(b"OK\n")
+        except OSError:
+            conn.sendall(b"ERR could not create folder\n")
+
+    elif action == "DELETE":
+        try:
+            os.rmdir(dir)
+            conn.sendall(b"OK\n")
+        except OSError:
+            conn.sendall(b"ERR could not delete folder\n")
+
+    
 
 
 
