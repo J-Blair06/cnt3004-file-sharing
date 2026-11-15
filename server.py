@@ -88,7 +88,24 @@ def do_login(conn, command, args, session):
 def do_dir(conn):
     # TODO (group 2): send the directory listing as OK size, then size
     # of bytes of listing text.
-    pass 
+
+    #saves directory to dir variable
+    dir = os.listdir(STORAGE_DIR)
+
+    #checks if directory is empty
+    #if it is, then it will send an error message to the client
+    if dir is None:
+        conn.sendall(b"ERR could not list directory\n")
+        return
+
+    #saves the size of the directory
+    size = len("\n".join(dir).encode())
+
+    #sends OK and size of directory, then sends directory listing
+    conn.sendall(f"OK {size}\n".encode())
+    conn.sendall("\n".join(dir).encode())
+
+
 
 def do_upload(conn, args):
     # TODO (group 1): handle UPLOAD name size. Reply OK or EXISTS, handle
