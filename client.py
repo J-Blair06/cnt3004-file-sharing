@@ -6,6 +6,9 @@ import hashlib
 import getpass
 import os
 
+HOST = "127.0.0.1"
+PORT = 5001
+
 # function
 
 def connect():
@@ -14,8 +17,6 @@ def connect():
 
     #Creates socket, Host and Port
     soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    HOST = "127.0.0.1"
-    PORT = 5001
 
     #trys to connect to server, if it fails it will print an error and exit
     try:
@@ -142,12 +143,19 @@ def do_upload(soc, argument):
         return
 
     #opens file and sends it to the server
+    currentupload = 0
+    totalsize = os.path.getsize(filename)
+
     file = open(filename, 'rb')
     while True:
         section = file.read(1024)
         if not section:
             break
         soc.send(section)
+    
+        currentupload += len(section)
+        print(f"Transferred {currentupload} / {totalsize} bytes", end='\r')
+
     file.close()
 
     #response from server after upload, if ok it will print successful
@@ -195,6 +203,7 @@ def do_download(soc, argument):
 
             file.write(data)
             receivedsize += len(data)
+            print(f"Received {receivedsize} / {expectedsize} bytes", end='\r')
 
     #checks if the received size matches the expected size
     #if they do not match it will print an error
@@ -275,7 +284,7 @@ def main():
                 print("Error: file names cannot contain spaces.")
                 continue
 
-        elif command == "DIR":
+        if command == "DIR":
             do_dir(soc)
 
         elif command == "UPLOAD":
