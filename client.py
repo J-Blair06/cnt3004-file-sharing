@@ -22,7 +22,7 @@ def connect():
     try:
         soc.connect((HOST, PORT))
 
-    except:
+    except OSError:
         print("Connection Error")
         sys.exit()
 
@@ -73,10 +73,20 @@ def do_dir(soc):
     # prints the listing
     
     #sends request to server
-    soc.send(b'DIR\n')
+    try:
+        soc.send(b'DIR\n')
+
+    except OSError:
+        print("Error: Lost connection to server")
+        return
 
     #reads the expected size and listing from server
-    part1 = soc.recv(1024).decode().strip()
+    try:
+        part1 = soc.recv(1024).decode().strip()
+    except OSError:
+        print("Error: Lost connection to server")
+        return
+    
     part2 = part1.split()
 
     if len(part2) < 2 or part2[0] != "OK":
@@ -87,14 +97,19 @@ def do_dir(soc):
     listing = b''
 
     #if the listing is larger than 1024 bytes, it will keep receiving until it matches the expected size
-    while len(listing) < expectedsize:
-        moreListing = soc.recv(1024)
+    try:
+        while len(listing) < expectedsize:
+            moreListing = soc.recv(1024)
 
-        #if the server sends no more data, it will break the loop
-        if not moreListing:
-            break
+            #if the server sends no more data, it will break the loop
+            if not moreListing:
+                break
 
-        listing += moreListing
+            listing += moreListing
+    except (ConnectionResetError, BrokenPipeError, OSError):
+        print("Error: Lost connection to server during directory listing.")
+        return
+
 
     #checks if the received sizes matches the expected size, if it does not match it will print an error message
     if(len(listing) != expectedsize):
@@ -122,10 +137,19 @@ def do_upload(soc, argument):
 
     #send upload request and filename and size to server
     message = b'UPLOAD ' + filename.encode() +b' ' + size + b'\n'
-    soc.send(message)
+
+    try:
+        soc.send(message)
+    except OSError:
+        print("Error: Lost connection to server")
+        return
 
     #response from server
-    response =soc.recv(1024).decode().strip()
+    try:
+        response =soc.recv(1024).decode().strip()
+    except OSError:
+        print("Error: lost connection to server")
+        return
 
     #if response is EXISTS, ask user if they want to overwrite the file
     #if yes it will overwrite the file, if no it will cancel the upload
@@ -135,7 +159,11 @@ def do_upload(soc, argument):
             print("Upload cancelled.")
             return
         else:
-            soc.send(b'OVERWRITE\n')
+            try:
+                soc.send(b'OVERWRITE\n')
+            except OSError:
+                print("Error: lost connection to server")
+                return
 
     #if neither OK or EXISTS, then it will print an error message
     elif response != "OK" and response != "EXISTS":
@@ -147,20 +175,31 @@ def do_upload(soc, argument):
     totalsize = os.path.getsize(filename)
 
     file = open(filename, 'rb')
-    while True:
-        section = file.read(1024)
-        if not section:
-            break
-        soc.send(section)
-    
-        currentupload += len(section)
-        print(f"Transferred {currentupload} / {totalsize} bytes", end='\r')
 
+    try:
+        while True:
+            section = file.read(1024)
+            if not section:
+                break
+            soc.send(section)
+    
+            currentupload += len(section)
+            print(f"Transferred {currentupload} / {totalsize} bytes", end='\r')
+
+    except (ConnectionResetError, BrokenPipeError, OSError):
+        print("Error: Lost connection to server during file upload.")
+        return
+    
     file.close()
 
     #response from server after upload, if ok it will print successful
     #if not it will print an error message
-    final_response = soc.recv(1024).decode().strip()
+    try:
+        final_response = soc.recv(1024).decode().strip()
+    except OSError:
+        print("Error: lost connection to server")
+        return
+    
     if final_response == "OK":
         print(f"{filename} uploaded successfully.")
 
@@ -178,10 +217,19 @@ def do_download(soc, argument):
     filename = argument
 
     #sends a download request to the server
-    soc.send(f'DOWNLOAD {filename}\n'.encode())
+    try:
+        soc.send(f'DOWNLOAD {filename}\n'.encode())
+    except OSError:
+        print("Error: lost connection to server")
+        return
 
     #reads the expected size and response from server
-    part1 = soc.recv(1024).decode().strip()
+    try:
+        part1 = soc.recv(1024).decode().strip()
+    except OSError:
+        print("Error: lost connection to server")
+        return
+    
     part2 = part1.split()
 
     if len(part2) < 2 or part2[0] != "OK":
@@ -193,17 +241,22 @@ def do_download(soc, argument):
     receivedsize = 0
 
     #opens a file to write the received data into
-    with open(filename, 'wb') as file:
-        while receivedsize < expectedsize:
-            data = soc.recv(1024)
+    try:
+        with open(filename, 'wb') as file:
+            while receivedsize < expectedsize:
+                data = soc.recv(1024)
 
-        #if the server sends no more data, it will break the loop
-            if not data:
-                break
+            #if the server sends no more data, it will break the loop
+                if not data:
+                    break
 
-            file.write(data)
-            receivedsize += len(data)
-            print(f"Received {receivedsize} / {expectedsize} bytes", end='\r')
+                file.write(data)
+                receivedsize += len(data)
+                print(f"Received {receivedsize} / {expectedsize} bytes", end='\r')
+
+    except (ConnectionResetError, BrokenPipeError, OSError):
+        print("Error: Lost connection to server during file download.")
+        return
 
     #checks if the received size matches the expected size
     #if they do not match it will print an error
@@ -221,10 +274,19 @@ def do_delete(soc, argument):
     filename = argument
 
     #sends delete request to server
-    soc.send(f'DELETE {filename}\n'.encode())
+    try:
+        soc.send(f'DELETE {filename}\n'.encode())
+    except OSError:
+        print("Error: lost connection to server")
+        return
 
     #listens for a response and prints it
-    response = soc.recv(1024).decode().strip()
+    try:
+        response = soc.recv(1024).decode().strip()
+    except OSError:
+        print("Error: lost connection to server")
+        return
+    
     print(f"Server response: {response}")
 
 
@@ -233,10 +295,19 @@ def do_subfolder(soc, argument):
     # and prints the reply
 
     #Makes subfolder request
-    soc.send(f'SUBFOLDER {argument}\n'.encode()) #remember argument needs to be split on server side, sents as foldername and action (create or delete)
+    try:
+        soc.send(f'SUBFOLDER {argument}\n'.encode()) #remember argument needs to be split on server side, sents as foldername and action (create or delete)
+    except OSError:
+        print("Error: lost connection to server")
+        return
 
     #listens for a response and prints it
-    response = soc.recv(1024).decode().strip()
+    try:
+        response = soc.recv(1024).decode().strip()
+    except OSError:
+        print("Error: lost connection to server")
+        return
+    
     print(f'Server response: {response}')
 
 
