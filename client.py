@@ -374,7 +374,11 @@ def main():
             print("Invalid command. Please try again.")
 
     #closes connection to server
-    soc.send(b'QUIT\n')
+    try:
+        soc.send(b'QUIT\n')
+    except OSError:
+        print("Error: lost connection to server")
+    
     soc.close()
 
 
