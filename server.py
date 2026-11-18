@@ -165,10 +165,50 @@ def do_upload(conn, args):
         print("upload incomplete, removed", temp_path)
         return       
 
+
 def do_download(conn, args):
     # TODO (group 1): reply ERR file not found, or OK size followed by
     # the file's bytes sent in chunks.
-    pass 
+
+    #check if the number of args is not equal to 1
+    if len(args) != 1:
+        conn.sendall(b"ERR bad command\n")
+        return
+
+    filename = args[0]
+
+    #checks if filename contains /, \\, or ..
+    if "/" in filename or "\\" in filename or ".." in filename:
+        conn.sendall(b"ERR invalid path\n")
+        return
+
+    path = os.path.join(STORAGE_DIR, filename)
+
+    #checks if the file exists, if not will send an error
+    if not os.path.exists(path):
+        conn.sendall(b"ERR file not found\n")
+        return
+
+    #finds size and sends OK and size to client
+    size = os.path.getsize(path)
+
+    conn.sendall(f"OK {size}\n".encode())
+
+    #opens file and sends in chunks to client, if fails will send an error
+    try:
+        with open(path, "rb") as file:
+            while True:
+                chunk = file.read(CHUNK_SIZE)
+
+                if not chunk:
+                    break
+
+                conn.sendall(chunk)
+
+    except OSError:
+        conn.sendall(b"ERR could not read file\n")
+    
+
 
 def do_delete(conn, args):
     # TODO (group 1) remove the file. reply ERR file not found, or 
@@ -213,6 +253,7 @@ def do_subfolder(conn, args):
         except OSError:
             conn.sendall(b"ERR could not delete folder\n")
 
+    return
     
 
 
