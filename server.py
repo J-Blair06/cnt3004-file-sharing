@@ -144,7 +144,26 @@ def do_upload(conn, args):
         #must be yes if not the previous two
     else:
         conn.sendall(b"OK\n")
-    #TODO receive size bytes and write them to path
+    
+    # receive size bytes and write them to path
+    remaining = size
+    temp_path = path + ".part"
+
+    with open(temp_path, "wb") as f:
+        while remaining > 0:
+            chunk = conn.recv(min(CHUNK_SIZE, remaining))
+            if chunk == b"":
+                print("The caller hung up")
+                break
+            f.write(chunk)
+            remaining -= len(chunk)
+    if remaining == 0:
+        os.replace(temp_path, path)
+        print("received", size, "bytes") 
+    else:
+        os.remove(temp_path)
+        print("upload incomplete, removed", temp_path)
+        return       
 
 def do_download(conn, args):
     # TODO (group 1): reply ERR file not found, or OK size followed by
