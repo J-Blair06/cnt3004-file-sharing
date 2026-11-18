@@ -104,6 +104,7 @@ def do_dir(conn):
     #sends OK and size of directory, then sends directory listing
     conn.sendall(f"OK {size}\n".encode())
     conn.sendall("\n".join(dir).encode())
+    return
 
 
 
@@ -149,14 +150,21 @@ def do_upload(conn, args):
     remaining = size
     temp_path = path + ".part"
 
-    with open(temp_path, "wb") as f:
-        while remaining > 0:
-            chunk = conn.recv(min(CHUNK_SIZE, remaining))
-            if chunk == b"":
-                print("The caller hung up")
-                break
-            f.write(chunk)
-            remaining -= len(chunk)
+    try:
+        with open(temp_path, "wb") as f:
+            while remaining > 0:
+                chunk = conn.recv(min(CHUNK_SIZE, remaining))
+                if chunk == b"":
+                    print("The caller hung up")
+                    return
+                f.write(chunk)
+                remaining -= len(chunk)
+                print("received", size - remaining, "of", size, "bytes")
+
+    except OSError:
+        conn.sendall(b"ERR could not write file\n")
+        return
+
     if remaining == 0:
         os.replace(temp_path, path)
         print("received", size, "bytes") 
@@ -191,6 +199,7 @@ def do_download(conn, args):
 
     #finds size and sends OK and size to client
     size = os.path.getsize(path)
+    total_sent = 0
 
     conn.sendall(f"OK {size}\n".encode())
 
@@ -204,9 +213,13 @@ def do_download(conn, args):
                     break
 
                 conn.sendall(chunk)
+                total_sent += len(chunk)
+                print("sent", total_sent, "of", size, "bytes")
 
     except OSError:
         conn.sendall(b"ERR could not read file\n")
+
+    return
     
 
 
