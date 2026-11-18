@@ -350,7 +350,7 @@ def main():
             break
 
         #before other commands, it will check if argument contains spaces
-        if argument and command in ["UPLOAD", "DOWNLOAD", "DELETE", "SUBFOLDER"]:    
+        if argument and command in ["UPLOAD", "DOWNLOAD", "DELETE"]:    
             if ' ' in argument:
                 print("Error: file names cannot contain spaces.")
                 continue
