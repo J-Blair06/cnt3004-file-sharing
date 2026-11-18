@@ -156,11 +156,13 @@ def do_upload(soc, argument):
     if response == "EXISTS":
         answer = input(f"{filename} already exists on the server. Do you want to overwrite it? (yes/no): ")
         if answer.lower() != "yes":
+            soc.send(b'NO\n')
+            soc.recv(1024)
             print("Upload cancelled.")
             return
         else:
             try:
-                soc.send(b'OVERWRITE\n')
+                soc.send(b'YES\n')
             except OSError:
                 print("Error: lost connection to server")
                 return
