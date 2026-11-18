@@ -156,17 +156,22 @@ def do_upload(conn, args):
                 chunk = conn.recv(min(CHUNK_SIZE, remaining))
                 if chunk == b"":
                     print("The caller hung up")
-                    return
+                    break
                 f.write(chunk)
                 remaining -= len(chunk)
                 print("received", size - remaining, "of", size, "bytes")
 
     except OSError:
         conn.sendall(b"ERR could not write file\n")
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
         return
 
     if remaining == 0:
         os.replace(temp_path, path)
+        conn.sendall(b"OK\n")
         print("received", size, "bytes") 
     else:
         os.remove(temp_path)
