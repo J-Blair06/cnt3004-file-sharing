@@ -260,7 +260,23 @@ def do_download(conn, args):
 def do_delete(conn, args):
     # TODO (group 1) remove the file. reply ERR file not found, or 
     # ERR file in use if another thread is transferring it.
-    pass 
+    if len(args) != 1:
+        conn.sendall(b"ERR bad command\n")
+        return
+    filename = args[0]
+    if "/" in filename or "\\" in filename or ".." in filename:
+        conn.sendall(b"ERR invalid path\n")
+        return
+    path = os.path.join(STORAGE_DIR, filename)
+    if os.path.isfile(path):
+        os.remove(path)
+        conn.sendall(b"OK path deleted\n")
+        return
+    else:
+        conn.sendall(b"ERR file doesn't exist\n")
+        return
+
+
 
 def do_subfolder(conn, args):
     # TODO (group 2): handle SUBFOLDER create/delete path. Reject paths 
