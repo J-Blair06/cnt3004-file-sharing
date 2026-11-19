@@ -2,6 +2,7 @@
 import os
 import socket
 import threading
+import auth
 
 # constants
 HOST = "0.0.0.0" # start off with this beacuse it means to listen on every network interface.
@@ -28,7 +29,7 @@ def handle_client(conn, addr):
     # TODO (group 1) run once per client in its own thread. Track the
     # clients logged-in state, read one command line at a time, pass it
     # to handle_command, and close the connection on QUIT or disconnect.
-    session = {"logged_in": True, "username": None} #TODO set to false once do _login works ****************************************************** This is super important
+    session = {"logged_in": False, "username": None} #TODO set to false once do _login works ****************************************************** This is super important
     while True:
         command = read_line(conn)
         if command is None:
@@ -83,7 +84,31 @@ def do_login(conn, command, args, session):
     # TODO (group 3): check the username and credential without ever
     # receiving a clear-text password. Reply OK or ERR login failed.
     # this i think has to wait for handle_command to finish ^
-    pass
+    if command == "LOGIN":
+        if len(args) != 1:
+            conn.sendall(b"ERR bad command\n")
+            return
+        username = args[0]
+        salt = auth.get_salt(username)
+        if salt is None:
+            conn.sendall(b"ERR login failed\n")
+            return
+        session["pending_user"] = args[0]
+        conn.sendall(f"OK {salt}\n".encode())
+
+    elif command == "PASS":
+        if len(args) != 1 or session["pending_user"] is None:
+            conn.sendall(b"ERR login failed\n")
+            return
+        username = session["pending_user"]
+        session["pending_user"] = None
+        password_hash = args[0]
+        if auth.check_hash(username, password_hash):
+            session["logged_in"] = True
+            session["username"] = username
+            conn.sendall(b"OK\n")
+        else:
+            conn.sendall(b"ERR login failed\n")
 
 def do_dir(conn):
     # TODO (group 2): send the directory listing as OK size, then size
