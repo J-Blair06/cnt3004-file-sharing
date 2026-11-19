@@ -296,6 +296,11 @@ def do_subfolder(soc, argument):
     # TODO (group 2) sends SUBFOLDER create or delete with the path
     # and prints the reply
 
+    #Check if the argument is 2 parts
+    if len(argument.split()) !=2:
+        print("ERR: Subfolder command needs two arguments: foldername and action (create or delete)")
+        return
+
     #Makes subfolder request
     try:
         soc.send(f'SUBFOLDER {argument}\n'.encode()) #remember argument needs to be split on server side, sents as foldername and action (create or delete)
