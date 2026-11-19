@@ -23,14 +23,14 @@ def read_line(conn):
             print("end of line reached")
             break
         line = line + byte
-    command = line.decode().strip()
+    command = line.decode(errors="replace").strip()
     return command
 
 def handle_client(conn, addr):
     # TODO (group 1) run once per client in its own thread. Track the
     # clients logged-in state, read one command line at a time, pass it
     # to handle_command, and close the connection on QUIT or disconnect.
-    session = {"logged_in": False, "username": None} #TODO set to false once do _login works ****************************************************** This is super important
+    session = {"logged_in": False, "username": None, "pending_user": None} 
     while True:
         command = read_line(conn)
         if command is None:
