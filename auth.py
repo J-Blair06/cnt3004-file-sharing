@@ -2,6 +2,7 @@
 import hashlib
 import json
 import secrets
+import getpass
 
 USERS_FILE = "users.json"
 ITERATIONS = 200000
@@ -49,3 +50,18 @@ def add_user(username, password):
     }
     save_users(users)
     return True
+
+if __name__ == "__main__":
+    # Example usage: add a new user
+    username = input("Enter username: ")
+    password = getpass.getpass("Enter password: ")
+    confirm_password = getpass.getpass("Confirm password: ")
+
+    if password != confirm_password:
+        print("Passwords do not match.")
+    else:
+        stored_name = "_".join(username.split())
+        if add_user(username, password):
+            print(f"User '{stored_name}' added successfully.")
+        else:
+            print(f"Failed to add user. It may already exist or the password is empty or contains spaces.")
