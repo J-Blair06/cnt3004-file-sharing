@@ -2,6 +2,7 @@
 import os
 import socket
 import threading
+import time
 
 # constants
 HOST = "0.0.0.0" # start off with this beacuse it means to listen on every network interface.
@@ -150,6 +151,7 @@ def do_upload(conn, args):
     remaining = size
     temp_path = path + ".part"
 
+    start = time.perf_counter()
     try:
         with open(temp_path, "wb") as f:
             while remaining > 0:
@@ -159,7 +161,7 @@ def do_upload(conn, args):
                     break
                 f.write(chunk)
                 remaining -= len(chunk)
-                print("received", size - remaining, "of", size, "bytes")
+                #print("received", size - remaining, "of", size, "bytes")
 
     except OSError:
         conn.sendall(b"ERR could not write file\n")
@@ -169,10 +171,12 @@ def do_upload(conn, args):
             pass
         return
 
+    seconds = time.perf_counter() - start
     if remaining == 0:
         os.replace(temp_path, path)
         conn.sendall(b"OK\n")
         print("received", size, "bytes") 
+        print("took", seconds, "seconds")
     else:
         os.remove(temp_path)
         print("upload incomplete, removed", temp_path)
@@ -219,7 +223,7 @@ def do_download(conn, args):
 
                 conn.sendall(chunk)
                 total_sent += len(chunk)
-                print("sent", total_sent, "of", size, "bytes")
+                #print("sent", total_sent, "of", size, "bytes")
 
     except OSError:
         conn.sendall(b"ERR could not read file\n")
