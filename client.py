@@ -326,6 +326,14 @@ def main():
     #connect to server
     soc = connect()
 
+    for attempt in range(3):
+        if login(soc):
+            break
+    else:
+        print(f"Too many failed attempts. Exiting.")
+        soc.close()
+        sys.exit()
+
     #ask for command
     print("Please enter a command (DIR, UPLOAD, DOWNLOAD, DELETE, SUBFOLDER, QUIT):")
 
