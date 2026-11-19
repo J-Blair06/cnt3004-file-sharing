@@ -265,12 +265,16 @@ def do_delete(conn, args):
 def do_subfolder(conn, args):
     # TODO (group 2): handle SUBFOLDER create/delete path. Reject paths 
     # with .. or a leading / (ERR invalid path), then reply OK or ERR.
-    
-    #splits args into foldername and action
-    parts = args[0].split()
 
-    foldername = parts[0]
-    action = parts[1].upper()
+    #check if the number of args is equal to 2
+    if len(args) != 2:
+        conn.sendall(b"ERR bad command\n")
+        return
+
+    
+    #splits args into action and foldername
+    foldername = args[1]
+    action = args[0].upper()
 
     #checks if foldername starts with / or has .. in it
     #if it does then it will send an error message
@@ -299,6 +303,10 @@ def do_subfolder(conn, args):
             conn.sendall(b"OK\n")
         except OSError:
             conn.sendall(b"ERR could not delete folder\n")
+
+    else:
+        conn.sendall(b"ERR not a valid action\n")
+        return
 
     return
     
