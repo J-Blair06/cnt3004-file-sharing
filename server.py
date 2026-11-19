@@ -4,12 +4,16 @@ import socket
 import threading
 import auth
 import time
+import analysis
 
 # constants
 HOST = "0.0.0.0" # start off with this beacuse it means to listen on every network interface.
 PORT = 5001 # start here arbitrarily, as long as >= 1024 (they need admin rights).
 STORAGE_DIR = "server_storage" # the folder the server keeps files in. Relative to where script is run.
 CHUNK_SIZE = 65536 # bytes to send or receive at a time (64 KB) needed for task B10.
+
+active_clients = 0 # number of clients currently connected to the server
+clients_lock = threading.Lock() # protects active_clients
 
 # functions
 def read_line(conn):
@@ -30,18 +34,25 @@ def handle_client(conn, addr):
     # TODO (group 1) run once per client in its own thread. Track the
     # clients logged-in state, read one command line at a time, pass it
     # to handle_command, and close the connection on QUIT or disconnect.
-    session = {"logged_in": False, "username": None, "pending_user": None} 
-    while True:
-        command = read_line(conn)
-        if command is None:
-            break
-        elif command.upper() == "QUIT":
-            conn.sendall(b"OK\n")
-            break
-        else:
-            print(command)
-            handle_command(conn, command, session)
-    conn.close()
+    global active_clients
+    with clients_lock:
+        active_clients += 1
+    try:
+        session = {"logged_in": False, "username": None, "pending_user": None} 
+        while True:
+            command = read_line(conn)
+            if command is None:
+                break
+            elif command.upper() == "QUIT":
+                conn.sendall(b"OK\n")
+                break
+            else:
+                print(command)
+                handle_command(conn, command, session)
+    finally:
+        with clients_lock:
+            active_clients -= 1
+        conn.close()
 
         
 def handle_command(conn, line, session):
@@ -265,14 +276,12 @@ def do_delete(conn, args):
 def do_subfolder(conn, args):
     # TODO (group 2): handle SUBFOLDER create/delete path. Reject paths 
     # with .. or a leading / (ERR invalid path), then reply OK or ERR.
-
-    #check if the number of args is equal to 2
+    
+    #checks if the number of args is equal to 2
     if len(args) != 2:
         conn.sendall(b"ERR bad command\n")
-        return
+        return    
 
-    
-    #splits args into action and foldername
     foldername = args[1]
     action = args[0].upper()
 
@@ -321,6 +330,7 @@ def main():
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT)) #getting the phone number
     os.makedirs(STORAGE_DIR, exist_ok=True)
+    analysis.start() #start the analysis module
     server.listen() #server starts to listen
     print("server is ready and listening")
     while True:
