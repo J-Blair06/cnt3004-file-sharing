@@ -21,6 +21,12 @@ files_lock = threading.Lock() #protects files_in_use
 
 
 # functions
+
+# helper function reads client count safely
+def get_active_clients():
+    with clients_lock:
+        return active_clients
+
 def read_line(conn):
     line = b""
     while True:
@@ -184,6 +190,8 @@ def do_upload(conn, args):
         conn.sendall(b"ERR file in use\n")
         return
 
+    done = False
+
     try:
         if os.path.exists(path):
             conn.sendall(b"EXISTS\n")
@@ -231,6 +239,7 @@ def do_upload(conn, args):
         if remaining == 0:
             os.replace(temp_path, path)
             conn.sendall(b"OK\n")
+            done = True
             print("received", size, "bytes") 
             print("took", seconds, "seconds")
         else:
@@ -240,6 +249,8 @@ def do_upload(conn, args):
     finally:
         with files_lock:
             files_in_use.discard(filename)       
+    if done:
+        analysis.record_transfer("upload", filename, size, seconds, get_active_clients())
 
 
 def do_download(conn, args):
@@ -276,6 +287,8 @@ def do_download(conn, args):
         conn.sendall(b"ERR file in use\n")
         return
 
+    done = False
+
     #finds size and sends OK and size to client
     size = os.path.getsize(path)
     total_sent = 0
@@ -288,6 +301,7 @@ def do_download(conn, args):
     #opens file and sends in chunks to client, if fails will send an error
         try:
             with open(path, "rb") as file:
+                start = time.perf_counter()
                 while True:
                     chunk = file.read(CHUNK_SIZE)
 
@@ -299,16 +313,18 @@ def do_download(conn, args):
                     if total_sent >= next_report:
                         print("sent", total_sent, "of", size, "bytes")
                         next_report += REPORT_EVERY
-
+                seconds = time.perf_counter() - start
+                done = total_sent == size
         except OSError:
             conn.sendall(b"ERR could not read file\n")
 
     finally:
         with files_lock:
             files_in_use.discard(filename)
-    return
-    
 
+    if done:
+        analysis.record_transfer("download", filename, size, seconds, get_active_clients())
+    
 
 def do_delete(conn, args):
     # TODO (group 1) remove the file. reply ERR file not found, or 
