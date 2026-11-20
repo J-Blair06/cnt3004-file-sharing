@@ -11,9 +11,14 @@ HOST = "0.0.0.0" # start off with this beacuse it means to listen on every netwo
 PORT = 5001 # start here arbitrarily, as long as >= 1024 (they need admin rights).
 STORAGE_DIR = "server_storage" # the folder the server keeps files in. Relative to where script is run.
 CHUNK_SIZE = 65536 # bytes to send or receive at a time (64 KB) needed for task B10.
+REPORT_EVERY = 10 * 1024 * 1024 # this is 10 MB in bytes
 
 active_clients = 0 # number of clients currently connected to the server
 clients_lock = threading.Lock() # protects active_clients
+
+files_in_use = set() #stores files being transfered
+files_lock = threading.Lock() #protects files_in_use
+
 
 # functions
 def read_line(conn):
@@ -167,56 +172,74 @@ def do_upload(conn, args):
         return
 
     path = os.path.join(STORAGE_DIR, filename)
-
-    if os.path.exists(path):
-        conn.sendall(b"EXISTS\n")
-        answer = read_line(conn)
-        if answer is None:
-            return
-        if answer.upper() == "NO": #check if the file doesn't previously exist 
-            conn.sendall(b"OK cancelled\n")
-            return
-        elif answer.upper() != "YES": #check if the file has a answer other than yes or no
-            conn.sendall(b"ERR bad command\n")
-            return
-        #must be yes if not the previous two
-    else:
-        conn.sendall(b"OK\n")
     
-    # receive size bytes and write them to path
-    remaining = size
-    temp_path = path + ".part"
-
-    start = time.perf_counter()
-    try:
-        with open(temp_path, "wb") as f:
-            while remaining > 0:
-                chunk = conn.recv(min(CHUNK_SIZE, remaining))
-                if chunk == b"":
-                    print("The caller hung up")
-                    break
-                f.write(chunk)
-                remaining -= len(chunk)
-                #print("received", size - remaining, "of", size, "bytes")
-
-    except OSError:
-        conn.sendall(b"ERR could not write file\n")
-        try:
-            os.remove(temp_path)
-        except OSError:
-            pass
+    claimed = False
+    with files_lock:
+        if filename not in files_in_use:
+            files_in_use.add(filename)
+            claimed = True
+        
+        
+    if not claimed:
+        conn.sendall(b"ERR file in use\n")
         return
 
-    seconds = time.perf_counter() - start
-    if remaining == 0:
-        os.replace(temp_path, path)
-        conn.sendall(b"OK\n")
-        print("received", size, "bytes") 
-        print("took", seconds, "seconds")
-    else:
-        os.remove(temp_path)
-        print("upload incomplete, removed", temp_path)
-        return       
+    try:
+        if os.path.exists(path):
+            conn.sendall(b"EXISTS\n")
+            answer = read_line(conn)
+            if answer is None:
+                return
+            if answer.upper() == "NO": #check if the file doesn't previously exist 
+                conn.sendall(b"OK cancelled\n")
+                return
+            elif answer.upper() != "YES": #check if the file has a answer other than yes or no
+                conn.sendall(b"ERR bad command\n")
+                return
+            #must be yes if not the previous two
+        else:
+            conn.sendall(b"OK\n")
+    
+        # receive size bytes and write them to path
+        remaining = size
+        next_report = REPORT_EVERY
+        temp_path = path + ".part"
+
+        start = time.perf_counter()
+        try:
+            with open(temp_path, "wb") as f:
+                while remaining > 0:
+                    chunk = conn.recv(min(CHUNK_SIZE, remaining))
+                    if chunk == b"":
+                        print("The caller hung up")
+                        break
+                    f.write(chunk)
+                    remaining -= len(chunk)
+                    if size - remaining >= next_report:
+                        print("received", size - remaining, "of", size, "bytes")
+                        next_report += REPORT_EVERY
+                        
+        except OSError:
+            conn.sendall(b"ERR could not write file\n")
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+            return
+
+        seconds = time.perf_counter() - start
+        if remaining == 0:
+            os.replace(temp_path, path)
+            conn.sendall(b"OK\n")
+            print("received", size, "bytes") 
+            print("took", seconds, "seconds")
+        else:
+            os.remove(temp_path)
+            print("upload incomplete, removed", temp_path)
+            return
+    finally:
+        with files_lock:
+            files_in_use.discard(filename)       
 
 
 def do_download(conn, args):
@@ -238,32 +261,51 @@ def do_download(conn, args):
     path = os.path.join(STORAGE_DIR, filename)
 
     #checks if the file exists, if not will send an error
-    if not os.path.exists(path):
+    if not os.path.isfile(path):
         conn.sendall(b"ERR file not found\n")
+        return
+
+    # lock block 1, claim the name
+    claimed = False
+    with files_lock:
+        if filename not in files_in_use:
+            files_in_use.add(filename)
+            claimed = True
+    
+    if not claimed:
+        conn.sendall(b"ERR file in use\n")
         return
 
     #finds size and sends OK and size to client
     size = os.path.getsize(path)
     total_sent = 0
+    next_report = REPORT_EVERY
 
-    conn.sendall(f"OK {size}\n".encode())
+    # lock block 2
+    try:
+        conn.sendall(f"OK {size}\n".encode())
 
     #opens file and sends in chunks to client, if fails will send an error
-    try:
-        with open(path, "rb") as file:
-            while True:
-                chunk = file.read(CHUNK_SIZE)
+        try:
+            with open(path, "rb") as file:
+                while True:
+                    chunk = file.read(CHUNK_SIZE)
 
-                if not chunk:
-                    break
+                    if not chunk:
+                        break
 
-                conn.sendall(chunk)
-                total_sent += len(chunk)
-                #print("sent", total_sent, "of", size, "bytes")
+                    conn.sendall(chunk)
+                    total_sent += len(chunk)
+                    if total_sent >= next_report:
+                        print("sent", total_sent, "of", size, "bytes")
+                        next_report += REPORT_EVERY
 
-    except OSError:
-        conn.sendall(b"ERR could not read file\n")
+        except OSError:
+            conn.sendall(b"ERR could not read file\n")
 
+    finally:
+        with files_lock:
+            files_in_use.discard(filename)
     return
     
 
@@ -271,7 +313,29 @@ def do_download(conn, args):
 def do_delete(conn, args):
     # TODO (group 1) remove the file. reply ERR file not found, or 
     # ERR file in use if another thread is transferring it.
-    pass 
+    reply = b"" # variable to save responses to the client
+    if len(args) != 1: # check if the filename isn't 1 word
+        conn.sendall(b"ERR bad command\n")
+        return
+    filename = args[0] # we take the filename from the args and assign it to filename
+    if "/" in filename or "\\" in filename or ".." in filename: # check for characters that could be file paths not filenames
+        conn.sendall(b"ERR invalid path\n")
+        return
+    with files_lock: 
+        path = os.path.join(STORAGE_DIR, filename) # look for the path
+        if filename in files_in_use: # checking if the file is in use or not
+            reply = b"ERR file in use\n"
+        elif os.path.isfile(path): # check if file exists
+            try:
+                os.remove(path)
+                reply = b"OK\n"
+            except OSError:
+                reply = b"ERR could not delete file\n"
+        else: # file wasn't found and doesn't exist
+            reply = b"ERR file not found\n"
+    conn.sendall(reply)
+
+
 
 def do_subfolder(conn, args):
     # TODO (group 2): handle SUBFOLDER create/delete path. Reject paths 
