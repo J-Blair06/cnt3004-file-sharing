@@ -49,22 +49,24 @@ def save_results():
 
     # Only one thread can write to the CSV file at a time
     with save_lock:
-        with open(RESULTS_FILE, "w", newline="") as csv_file:
-            writer = csv.DictWriter(
-                csv_file,
-                fieldnames=[
-                    "direction",
-                    "filename",
-                    "size_bytes",
-                    "size_mb",
-                    "seconds",
-                    "rate_mbs",
-                    "active_clients",
-                ],
-            )
-            # Write header and data rows
-            writer.writeheader()
-            writer.writerows(rows)
-
+        try:
+            with open(RESULTS_FILE, "w", newline="") as csv_file:
+                writer = csv.DictWriter(
+                    csv_file,
+                    fieldnames=[
+                        "direction",
+                        "filename",
+                        "size_bytes",
+                        "size_mb",
+                        "seconds",
+                        "rate_mbs",
+                        "active_clients",
+                    ],
+                )
+                # Write header and data rows
+                writer.writeheader()
+                writer.writerows(rows)
+        except OSError as error:
+            print("Could not save analysis results to CSV file:", error)
 
 
