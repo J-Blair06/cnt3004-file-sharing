@@ -11,6 +11,7 @@ HOST = "0.0.0.0" # start off with this beacuse it means to listen on every netwo
 PORT = 5001 # start here arbitrarily, as long as >= 1024 (they need admin rights).
 STORAGE_DIR = "server_storage" # the folder the server keeps files in. Relative to where script is run.
 CHUNK_SIZE = 65536 # bytes to send or receive at a time (64 KB) needed for task B10.
+REPORT_EVERY = 10 * 1024 * 1024 # this is 10 MB in bytes
 
 active_clients = 0 # number of clients currently connected to the server
 clients_lock = threading.Lock() # protects active_clients
@@ -242,32 +243,51 @@ def do_download(conn, args):
     path = os.path.join(STORAGE_DIR, filename)
 
     #checks if the file exists, if not will send an error
-    if not os.path.exists(path):
+    if not os.path.isfile(path):
         conn.sendall(b"ERR file not found\n")
+        return
+
+    # lock block 1, claim the name
+    claimed = False
+    with files_lock:
+        if filename not in files_in_use:
+            files_in_use.add(filename)
+            claimed = True
+    
+    if not claimed:
+        conn.sendall(b"ERR file in use\n")
         return
 
     #finds size and sends OK and size to client
     size = os.path.getsize(path)
     total_sent = 0
+    next_report = REPORT_EVERY
 
-    conn.sendall(f"OK {size}\n".encode())
+    # lock block 2
+    try:
+        conn.sendall(f"OK {size}\n".encode())
 
     #opens file and sends in chunks to client, if fails will send an error
-    try:
-        with open(path, "rb") as file:
-            while True:
-                chunk = file.read(CHUNK_SIZE)
+        try:
+            with open(path, "rb") as file:
+                while True:
+                    chunk = file.read(CHUNK_SIZE)
 
-                if not chunk:
-                    break
+                    if not chunk:
+                        break
 
-                conn.sendall(chunk)
-                total_sent += len(chunk)
-                #print("sent", total_sent, "of", size, "bytes")
+                    conn.sendall(chunk)
+                    total_sent += len(chunk)
+                    if total_sent >= next_report:
+                        print("sent", total_sent, "of", size, "bytes")
+                        next_report += REPORT_EVERY
 
-    except OSError:
-        conn.sendall(b"ERR could not read file\n")
+        except OSError:
+            conn.sendall(b"ERR could not read file\n")
 
+    finally:
+        with files_lock:
+            files_in_use.discard(filename)
     return
     
 
