@@ -172,56 +172,74 @@ def do_upload(conn, args):
         return
 
     path = os.path.join(STORAGE_DIR, filename)
-
-    if os.path.exists(path):
-        conn.sendall(b"EXISTS\n")
-        answer = read_line(conn)
-        if answer is None:
-            return
-        if answer.upper() == "NO": #check if the file doesn't previously exist 
-            conn.sendall(b"OK cancelled\n")
-            return
-        elif answer.upper() != "YES": #check if the file has a answer other than yes or no
-            conn.sendall(b"ERR bad command\n")
-            return
-        #must be yes if not the previous two
-    else:
-        conn.sendall(b"OK\n")
     
-    # receive size bytes and write them to path
-    remaining = size
-    temp_path = path + ".part"
-
-    start = time.perf_counter()
-    try:
-        with open(temp_path, "wb") as f:
-            while remaining > 0:
-                chunk = conn.recv(min(CHUNK_SIZE, remaining))
-                if chunk == b"":
-                    print("The caller hung up")
-                    break
-                f.write(chunk)
-                remaining -= len(chunk)
-                #print("received", size - remaining, "of", size, "bytes")
-
-    except OSError:
-        conn.sendall(b"ERR could not write file\n")
-        try:
-            os.remove(temp_path)
-        except OSError:
-            pass
+    claimed = False
+    with files_lock:
+        if filename not in files_in_use:
+            files_in_use.add(filename)
+            claimed = True
+        
+        
+    if not claimed:
+        conn.sendall(b"ERR file in use\n")
         return
 
-    seconds = time.perf_counter() - start
-    if remaining == 0:
-        os.replace(temp_path, path)
-        conn.sendall(b"OK\n")
-        print("received", size, "bytes") 
-        print("took", seconds, "seconds")
-    else:
-        os.remove(temp_path)
-        print("upload incomplete, removed", temp_path)
-        return       
+    try:
+        if os.path.exists(path):
+            conn.sendall(b"EXISTS\n")
+            answer = read_line(conn)
+            if answer is None:
+                return
+            if answer.upper() == "NO": #check if the file doesn't previously exist 
+                conn.sendall(b"OK cancelled\n")
+                return
+            elif answer.upper() != "YES": #check if the file has a answer other than yes or no
+                conn.sendall(b"ERR bad command\n")
+                return
+            #must be yes if not the previous two
+        else:
+            conn.sendall(b"OK\n")
+    
+        # receive size bytes and write them to path
+        remaining = size
+        next_report = REPORT_EVERY
+        temp_path = path + ".part"
+
+        start = time.perf_counter()
+        try:
+            with open(temp_path, "wb") as f:
+                while remaining > 0:
+                    chunk = conn.recv(min(CHUNK_SIZE, remaining))
+                    if chunk == b"":
+                        print("The caller hung up")
+                        break
+                    f.write(chunk)
+                    remaining -= len(chunk)
+                    if size - remaining >= next_report:
+                        print("received", size - remaining, "of", size, "bytes")
+                        next_report += REPORT_EVERY
+                        
+        except OSError:
+            conn.sendall(b"ERR could not write file\n")
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+            return
+
+        seconds = time.perf_counter() - start
+        if remaining == 0:
+            os.replace(temp_path, path)
+            conn.sendall(b"OK\n")
+            print("received", size, "bytes") 
+            print("took", seconds, "seconds")
+        else:
+            os.remove(temp_path)
+            print("upload incomplete, removed", temp_path)
+            return
+    finally:
+        with files_lock:
+            files_in_use.discard(filename)       
 
 
 def do_download(conn, args):
