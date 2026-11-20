@@ -16,16 +16,27 @@ REPORT_EVERY = 10 * 1024 * 1024 # this is 10 MB in bytes
 active_clients = 0 # number of clients currently connected to the server
 clients_lock = threading.Lock() # protects active_clients
 
-files_in_use = set() #stores files being transfered
-files_lock = threading.Lock() #protects files_in_use
+files_in_use = set() # stores files being transfered
+files_lock = threading.Lock() # protects files_in_use
 
 
 # functions
+
 
 # helper function reads client count safely
 def get_active_clients():
     with clients_lock:
         return active_clients
+
+# helper function checks that a filename is a plain name inside the storage folder
+def is_safe_name(name):
+    if name in ("", ".", ".."):
+        return False
+    if "/" in name or "\\" in name or ":" in name or ".." in name:
+        return False
+    if name.endswith(".part"): # .part files are the server's own temp files
+        return False
+    return True
 
 def read_line(conn):
     line = b""
@@ -42,7 +53,7 @@ def read_line(conn):
     return command
 
 def handle_client(conn, addr):
-    # TODO (group 1) run once per client in its own thread. Track the
+    # (group 1) run once per client in its own thread. Track the
     # clients logged-in state, read one command line at a time, pass it
     # to handle_command, and close the connection on QUIT or disconnect.
     global active_clients
@@ -67,7 +78,7 @@ def handle_client(conn, addr):
 
         
 def handle_command(conn, line, session):
-    # TODO (group 1) split the line into a command and args, refuse
+    # (group 1) split the line into a command and args, refuse
     # everything except LOGIN and PASS until the client is logged in, then call
     # the matching do_function. Reply ERR bad command for unknown ones.
     parts = line.split()
@@ -104,7 +115,7 @@ def handle_command(conn, line, session):
         conn.sendall(b"ERR bad command\n")
     
 def do_login(conn, command, args, session):
-    # TODO (group 3): check the username and credential without ever
+    # (group 3): check the username and credential without ever
     # receiving a clear-text password. Reply OK or ERR login failed.
     # this i think has to wait for handle_command to finish ^
     if command == "LOGIN":
@@ -134,22 +145,22 @@ def do_login(conn, command, args, session):
             conn.sendall(b"ERR login failed\n")
 
 def do_dir(conn):
-    # TODO (group 2): send the directory listing as OK size, then size
+    # (group 2): send the directory listing as OK size, then size
     # of bytes of listing text.
 
-    #saves directory to dir variable
+    # saves directory to dir variable
     dir = os.listdir(STORAGE_DIR)
 
-    #checks if directory is empty
-    #if it is, then it will send an error message to the client
+    # checks if directory is empty
+    # if it is, then it will send an error message to the client
     if dir is None:
         conn.sendall(b"ERR could not list directory\n")
         return
 
-    #saves the size of the directory
+    # saves the size of the directory
     size = len("\n".join(dir).encode())
 
-    #sends OK and size of directory, then sends directory listing
+    # sends OK and size of directory, then sends directory listing
     conn.sendall(f"OK {size}\n".encode())
     conn.sendall("\n".join(dir).encode())
     return
@@ -157,7 +168,7 @@ def do_dir(conn):
 
 
 def do_upload(conn, args):
-    # TODO (group 1): handle UPLOAD name size. Reply OK or EXISTS, handle
+    # (group 1): handle UPLOAD name size. Reply OK or EXISTS, handle
     # YES/NO, receive exactly size bytes in chunks, then reply OK or ERR.
     if len(args) != 2:
         conn.sendall(b"ERR bad command\n")
@@ -173,7 +184,7 @@ def do_upload(conn, args):
 
     filename = args[0]
 
-    if "/" in filename or "\\" in filename or ".." in filename:
+    if not is_safe_name(filename):
         conn.sendall(b"ERR invalid path\n")
         return
 
@@ -198,13 +209,13 @@ def do_upload(conn, args):
             answer = read_line(conn)
             if answer is None:
                 return
-            if answer.upper() == "NO": #check if the file doesn't previously exist 
+            if answer.upper() == "NO": # check if the file doesn't previously exist 
                 conn.sendall(b"OK cancelled\n")
                 return
-            elif answer.upper() != "YES": #check if the file has a answer other than yes or no
+            elif answer.upper() != "YES": # check if the file has a answer other than yes or no
                 conn.sendall(b"ERR bad command\n")
                 return
-            #must be yes if not the previous two
+            # must be yes if not the previous two
         else:
             conn.sendall(b"OK\n")
     
@@ -254,24 +265,24 @@ def do_upload(conn, args):
 
 
 def do_download(conn, args):
-    # TODO (group 1): reply ERR file not found, or OK size followed by
+    # (group 1): reply ERR file not found, or OK size followed by
     # the file's bytes sent in chunks.
 
-    #check if the number of args is not equal to 1
+    # check if the number of args is not equal to 1
     if len(args) != 1:
         conn.sendall(b"ERR bad command\n")
         return
 
     filename = args[0]
 
-    #checks if filename contains /, \\, or ..
-    if "/" in filename or "\\" in filename or ".." in filename:
+    # checks if filename contains /, \\, or ..
+    if not is_safe_name(filename):
         conn.sendall(b"ERR invalid path\n")
         return
 
     path = os.path.join(STORAGE_DIR, filename)
 
-    #checks if the file exists, if not will send an error
+    # checks if the file exists, if not will send an error
     if not os.path.isfile(path):
         conn.sendall(b"ERR file not found\n")
         return
@@ -289,7 +300,7 @@ def do_download(conn, args):
 
     done = False
 
-    #finds size and sends OK and size to client
+    # finds size and sends OK and size to client
     size = os.path.getsize(path)
     total_sent = 0
     next_report = REPORT_EVERY
@@ -298,7 +309,7 @@ def do_download(conn, args):
     try:
         conn.sendall(f"OK {size}\n".encode())
 
-    #opens file and sends in chunks to client, if fails will send an error
+    # opens file and sends in chunks to client, if fails will send an error
         try:
             with open(path, "rb") as file:
                 start = time.perf_counter()
@@ -327,14 +338,14 @@ def do_download(conn, args):
     
 
 def do_delete(conn, args):
-    # TODO (group 1) remove the file. reply ERR file not found, or 
+    # (group 1) remove the file. reply ERR file not found, or 
     # ERR file in use if another thread is transferring it.
     reply = b"" # variable to save responses to the client
     if len(args) != 1: # check if the filename isn't 1 word
         conn.sendall(b"ERR bad command\n")
         return
     filename = args[0] # we take the filename from the args and assign it to filename
-    if "/" in filename or "\\" in filename or ".." in filename: # check for characters that could be file paths not filenames
+    if not is_safe_name(filename): # check for characters that could be file paths not filenames
         conn.sendall(b"ERR invalid path\n")
         return
     with files_lock: 
@@ -354,10 +365,10 @@ def do_delete(conn, args):
 
 
 def do_subfolder(conn, args):
-    # TODO (group 2): handle SUBFOLDER create/delete path. Reject paths 
+    # (group 2): handle SUBFOLDER create/delete path. Reject paths 
     # with .. or a leading / (ERR invalid path), then reply OK or ERR.
     
-    #checks if the number of args is equal to 2
+    # checks if the number of args is equal to 2
     if len(args) != 2:
         conn.sendall(b"ERR bad command\n")
         return    
@@ -365,30 +376,32 @@ def do_subfolder(conn, args):
     foldername = args[1]
     action = args[0].upper()
 
-    #checks if foldername starts with / or has .. in it
-    #if it does then it will send an error message
-    if foldername.startswith("/") or ".." in foldername:
+    # checks if foldername starts with / or has .. in it
+    # if it does then it will send an error message
+    root = os.path.realpath(STORAGE_DIR)
 
+    # creates the path to the folder in the directory
+    folder_path = os.path.realpath(os.path.join(STORAGE_DIR, foldername))
+
+    if not folder_path.startswith(root + os.sep):
         conn.sendall(b"ERR invalid path\n")
         return
 
-    # creates the path to the folder in the directory
-    dir = os.path.join(STORAGE_DIR, foldername)
-
-    #checks what the action is
-    #if create it will create the folder
-    #if delete it will delete the folder
-    #if it cant do either it will send an error message
+    
+    # checks what the action is
+    # if create it will create the folder
+    # if delete it will delete the folder
+    # if it cant do either it will send an error message
     if action == "CREATE":
         try:
-            os.makedirs(dir, exist_ok=True)
+            os.makedirs(folder_path, exist_ok=True)
             conn.sendall(b"OK\n")
         except OSError:
             conn.sendall(b"ERR could not create folder\n")
 
     elif action == "DELETE":
         try:
-            os.rmdir(dir)
+            os.rmdir(folder_path)
             conn.sendall(b"OK\n")
         except OSError:
             conn.sendall(b"ERR could not delete folder\n")
@@ -403,18 +416,18 @@ def do_subfolder(conn, args):
 
 
 def main():
-    # TODO (group 1): create the listening socket, bind to HOST and PORT,
+    # (group 1): create the listening socket, bind to HOST and PORT,
     # start the analysis module, then accept clients and start a
     # handle_client thread for each.
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #getting the phone
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # getting the phone
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((HOST, PORT)) #getting the phone number
+    server.bind((HOST, PORT)) # getting the phone number
     os.makedirs(STORAGE_DIR, exist_ok=True)
-    analysis.start() #start the analysis module
-    server.listen() #server starts to listen
+    analysis.start() # start the analysis module
+    server.listen() # server starts to listen
     print("server is ready and listening")
     while True:
-        conn, addr = server.accept() #returns new line to the caller and the caller's address
+        conn, addr = server.accept() # returns new line to the caller and the caller's address
         print("server accepted", addr)
         threading.Thread(target = handle_client, args = (conn, addr), daemon=True).start()
         
