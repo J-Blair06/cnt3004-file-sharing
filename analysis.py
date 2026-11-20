@@ -7,7 +7,8 @@ from datetime import datetime
 results = []
 # CSV file that stores the transfer results
 RESULTS_FILE = "transfer_results.csv"
-
+results_lock = threading.Lock() # protects results
+save_lock = threading.Lock() #Protects the CSV file write
 
 def start():
     # Reset results and create a new results file with a timestamp
@@ -16,7 +17,7 @@ def start():
     with results_lock:
         results.clear()
 
-results_lock = threading.Lock() # protects results
+
 
 def record_transfer(direction, filename, size_bytes, seconds, active_clients):
     # Convert size to megabytes and calculate transfer rate
@@ -28,9 +29,9 @@ def record_transfer(direction, filename, size_bytes, seconds, active_clients):
         "direction": direction,
         "filename": filename,
         "size_bytes": size_bytes,
-        "size_mb": size_mb,
-        "seconds": seconds,
-        "rate_mbs": rate_mbs,
+        "size_mb": round(size_mb, 3),
+        "seconds": round(seconds, 3),
+        "rate_mbs": round(rate_mbs, 3),
         "active_clients": active_clients,
     }
 
@@ -46,23 +47,24 @@ def save_results():
     with results_lock:
         rows = list(results)
 
-    # Open CSV file for writing
-    with open(RESULTS_FILE, "w", newline="") as csv_file:
-        writer = csv.DictWriter(
-            csv_file,
-            fieldnames=[
-                "direction",
-                "filename",
-                "size_bytes",
-                "size_mb",
-                "seconds",
-                "rate_mbs",
-                "active_clients",
-            ],
-        )
-        # Write header and data rows
-        writer.writeheader()
-        writer.writerows(rows)
+    # Only one thread can write to the CSV file at a time
+    with save_lock:
+        with open(RESULTS_FILE, "w", newline="") as csv_file:
+            writer = csv.DictWriter(
+                csv_file,
+                fieldnames=[
+                    "direction",
+                    "filename",
+                    "size_bytes",
+                    "size_mb",
+                    "seconds",
+                    "rate_mbs",
+                    "active_clients",
+                ],
+            )
+            # Write header and data rows
+            writer.writeheader()
+            writer.writerows(rows)
 
 
 
