@@ -15,6 +15,10 @@ CHUNK_SIZE = 65536 # bytes to send or receive at a time (64 KB) needed for task 
 active_clients = 0 # number of clients currently connected to the server
 clients_lock = threading.Lock() # protects active_clients
 
+files_in_use = set() #stores files being transfered
+files_lock = threading.Lock() #protects files_in_use
+
+
 # functions
 def read_line(conn):
     line = b""
@@ -271,21 +275,27 @@ def do_download(conn, args):
 def do_delete(conn, args):
     # TODO (group 1) remove the file. reply ERR file not found, or 
     # ERR file in use if another thread is transferring it.
-    if len(args) != 1:
+    reply = b"" # variable to save responses to the client
+    if len(args) != 1: # check if the filename isn't 1 word
         conn.sendall(b"ERR bad command\n")
         return
-    filename = args[0]
-    if "/" in filename or "\\" in filename or ".." in filename:
+    filename = args[0] # we take the filename from the args and assign it to filename
+    if "/" in filename or "\\" in filename or ".." in filename: # check for characters that could be file paths not filenames
         conn.sendall(b"ERR invalid path\n")
         return
-    path = os.path.join(STORAGE_DIR, filename)
-    if os.path.isfile(path):
-        os.remove(path)
-        conn.sendall(b"OK path deleted\n")
-        return
-    else:
-        conn.sendall(b"ERR file doesn't exist\n")
-        return
+    with files_lock: 
+        path = os.path.join(STORAGE_DIR, filename) # look for the path
+        if filename in files_in_use: # checking if the file is in use or not
+            reply = b"ERR file in use\n"
+        elif os.path.isfile(path): # check if file exists
+            try:
+                os.remove(path)
+                reply = b"OK\n"
+            except OSError:
+                reply = b"ERR could not delete file\n"
+        else: # file wasn't found and doesn't exist
+            reply = b"ERR file not found\n"
+    conn.sendall(reply)
 
 
 
