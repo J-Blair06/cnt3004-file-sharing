@@ -131,12 +131,9 @@ def do_upload(soc, argument):
 
     filename = argument
 
-    #get size and change it to bytes
-    size = os.path.getsize(filename)
-    size = size.to_bytes(4, byteorder='big')
-
     #send upload request and filename and size to server
-    message = b'UPLOAD ' + filename.encode() +b' ' + size + b'\n'
+    size = os.path.getsize(filename)
+    message = f'UPLOAD {filename} {size}\n'.encode()
 
     try:
         soc.send(message)
