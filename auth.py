@@ -25,7 +25,7 @@ def load_users():
     try:
         with open(USERS_FILE, "r") as file:
             return json.load(file)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 def save_users(users):
@@ -52,7 +52,7 @@ def add_user(username, password):
     return True
 
 if __name__ == "__main__":
-    # Example usage: add a new user
+    # Run on the server to add a new user
     username = input("Enter username: ")
     password = getpass.getpass("Enter password: ")
     confirm_password = getpass.getpass("Confirm password: ")
@@ -64,4 +64,4 @@ if __name__ == "__main__":
         if add_user(username, password):
             print(f"User '{stored_name}' added successfully.")
         else:
-            print(f"Failed to add user. It may already exist or the password is empty or contains spaces.")
+            print("Failed to add user. It may already exist or the password is empty or contains spaces.")
