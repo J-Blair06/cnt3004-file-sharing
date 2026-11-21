@@ -153,8 +153,8 @@ def do_dir(conn):
 
     # checks if directory is empty
     # if it is, then it will send an error message to the client
-    if dir is None:
-        conn.sendall(b"ERR could not list directory\n")
+    if len(dir) == 0:
+        conn.sendall(b"ERR directory is empty\n")
         return
 
     # saves the size of the directory
@@ -378,6 +378,10 @@ def do_subfolder(conn, args):
 
     # checks if foldername starts with / or has .. in it
     # if it does then it will send an error message
+    if foldername.startswith("/") or ".." in foldername or "\\" in foldername:
+        conn.sendall(b"ERR invalid path\n")
+        return
+
     root = os.path.realpath(STORAGE_DIR)
 
     # creates the path to the folder in the directory
