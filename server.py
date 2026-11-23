@@ -6,6 +6,8 @@ import auth
 import time
 import analysis
 
+MAX_LOGIN_ATTEMPTS = 3 # maximum number of login attempts before disconnecting the client
+
 # constants
 HOST = "0.0.0.0" # start off with this beacuse it means to listen on every network interface.
 PORT = 5001 # start here arbitrarily, as long as >= 1024 (they need admin rights).
@@ -60,7 +62,7 @@ def handle_client(conn, addr):
     with clients_lock:
         active_clients += 1
     try:
-        session = {"logged_in": False, "username": None, "pending_user": None} 
+        session = {"logged_in": False, "username": None, "pending_user": None, "failed_attempts": 0, "close": False} 
         while True:
             command = read_line(conn)
             if command is None:
@@ -71,6 +73,8 @@ def handle_client(conn, addr):
             else:
                 print(command)
                 handle_command(conn, command, session)
+                if session["close"]:
+                    break
     finally:
         with clients_lock:
             active_clients -= 1
@@ -113,7 +117,15 @@ def handle_command(conn, line, session):
 
     else:
         conn.sendall(b"ERR bad command\n")
-    
+
+def login_failed(conn, session):
+    session["failed_attempts"] += 1
+    if session["failed_attempts"] >= MAX_LOGIN_ATTEMPTS:
+        conn.sendall(b"ERR too many failed attempts, disconnecting\n")
+        session["close"] = True
+    else:
+        conn.sendall(b"ERR login failed\n")
+
 def do_login(conn, command, args, session):
     # (group 3): check the username and credential without ever
     # receiving a clear-text password. Reply OK or ERR login failed.
@@ -125,7 +137,7 @@ def do_login(conn, command, args, session):
         username = args[0]
         salt = auth.get_salt(username)
         if salt is None:
-            conn.sendall(b"ERR login failed\n")
+            login_failed(conn, session)
             return
         session["pending_user"] = args[0]
         conn.sendall(f"OK {salt}\n".encode())
@@ -142,7 +154,7 @@ def do_login(conn, command, args, session):
             session["username"] = username
             conn.sendall(b"OK\n")
         else:
-            conn.sendall(b"ERR login failed\n")
+            login_failed(conn, session)
 
 def do_dir(conn):
     # (group 2): send the directory listing as OK size, then size
