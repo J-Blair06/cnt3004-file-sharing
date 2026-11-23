@@ -66,7 +66,16 @@ def login(soc):
     return False
     
 
-  
+def read_line(soc):
+    #reads one byte at a time up to the newline so data is never missed
+    line = b""
+    while True:
+        byte = soc.recv(1)
+        if byte == b"":
+            return None
+        if byte == b"\n":
+            return line.decode().strip()
+        line = line + byte
 
 def do_dir(soc):
     # TODO (group 2) sends DIR, reads the size, reads that many bytes, and
@@ -82,11 +91,15 @@ def do_dir(soc):
 
     #reads the expected size and listing from server
     try:
-        part1 = soc.recv(1024).decode().strip()
+        part1 = read_line(soc)
     except OSError:
         print("Error: Lost connection to server")
         return
-    
+
+    if part1 is None:
+        print("Error: Lost connection to server")
+        return
+
     part2 = part1.split()
 
     if len(part2) < 2 or part2[0] != "OK":
@@ -224,11 +237,15 @@ def do_download(soc, argument):
 
     #reads the expected size and response from server
     try:
-        part1 = soc.recv(1024).decode().strip()
+        part1 = read_line(soc)
     except OSError:
         print("Error: lost connection to server")
         return
-    
+
+    if part1 is None:
+        print("Error: Lost connection to server")
+        return
+
     part2 = part1.split()
 
     if len(part2) < 2 or part2[0] != "OK":
