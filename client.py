@@ -213,7 +213,7 @@ def do_upload(soc, argument):
         return
     
     if final_response == "OK":
-        print(f"{filename} uploaded successfully.")
+        print(f"\n{filename} uploaded successfully.")
 
     else:
         print(f"Error: server responded with {final_response}")
@@ -279,7 +279,7 @@ def do_download(soc, argument):
     if receivedsize != expectedsize:
         print("Error: received size does not match expected size.")
     else:
-        print(f"{filename} downloaded successfully.")
+        print(f"\n{filename} downloaded successfully.")
 
 
 
