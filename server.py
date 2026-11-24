@@ -14,6 +14,7 @@ PORT = 5001 # start here arbitrarily, as long as >= 1024 (they need admin rights
 STORAGE_DIR = "server_storage" # the folder the server keeps files in. Relative to where script is run.
 CHUNK_SIZE = 65536 # bytes to send or receive at a time (64 KB) needed for task B10.
 REPORT_EVERY = 10 * 1024 * 1024 # this is 10 MB in bytes
+MAX_UPLOAD = 5 * 1024 * 1024 * 1024 # 5 GB
 
 active_clients = 0 # number of clients currently connected to the server
 clients_lock = threading.Lock() # protects active_clients
@@ -71,7 +72,6 @@ def handle_client(conn, addr):
                 conn.sendall(b"OK\n")
                 break
             else:
-                print(command)
                 handle_command(conn, command, session)
                 if session["close"]:
                     break
@@ -91,7 +91,7 @@ def handle_command(conn, line, session):
         return
     command = parts[0].upper()
     args = parts[1:]
-    print(command, args)
+    if command != "PASS": print(command, args)
 
     if not session["logged_in"] and command not in ("LOGIN", "PASS"):
         conn.sendall(b"ERR not logged in\n")
@@ -193,6 +193,9 @@ def do_upload(conn, args):
     if size < 0:
         conn.sendall(b"ERR bad size\n")
         return
+    if size > MAX_UPLOAD:
+        conn.sendall(b"ERR file too large\n")
+        return
 
     filename = args[0]
 
@@ -236,6 +239,7 @@ def do_upload(conn, args):
         next_report = REPORT_EVERY
         temp_path = path + ".part"
 
+        conn.settimeout(30)
         start = time.perf_counter()
         try:
             with open(temp_path, "wb") as f:
@@ -249,27 +253,54 @@ def do_upload(conn, args):
                     if size - remaining >= next_report:
                         print("received", size - remaining, "of", size, "bytes")
                         next_report += REPORT_EVERY
-                        
-        except OSError:
-            conn.sendall(b"ERR could not write file\n")
+
+        except socket.timeout:
             try:
                 os.remove(temp_path)
             except OSError:
                 pass
+            try:
+                conn.sendall(b"ERR upload timed out\n")
+                conn.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             return
-
+                        
+        except OSError:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+            try:
+                conn.sendall(b"ERR could not write file\n")
+            except OSError:
+                pass
+            return
         seconds = time.perf_counter() - start
         if remaining == 0:
-            os.replace(temp_path, path)
+            try:
+                os.replace(temp_path, path)
+            except OSError:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+                conn.sendall(b"ERR could not save file\n")
+                return
             conn.sendall(b"OK\n")
             done = True
-            print("received", size, "bytes") 
+            print("received", size, "bytes")
             print("took", seconds, "seconds")
         else:
-            os.remove(temp_path)
-            print("upload incomplete, removed", temp_path)
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+            print("Upload incomplete, removed", temp_path)
             return
+
     finally:
+        conn.settimeout(None)
         with files_lock:
             files_in_use.discard(filename)       
     if done:
