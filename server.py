@@ -71,7 +71,6 @@ def handle_client(conn, addr):
                 conn.sendall(b"OK\n")
                 break
             else:
-                print(command)
                 handle_command(conn, command, session)
                 if session["close"]:
                     break
@@ -91,7 +90,7 @@ def handle_command(conn, line, session):
         return
     command = parts[0].upper()
     args = parts[1:]
-    print(command, args)
+    if command != "PASS": print(command, args)
 
     if not session["logged_in"] and command not in ("LOGIN", "PASS"):
         conn.sendall(b"ERR not logged in\n")
@@ -251,24 +250,38 @@ def do_upload(conn, args):
                         next_report += REPORT_EVERY
                         
         except OSError:
-            conn.sendall(b"ERR could not write file\n")
             try:
                 os.remove(temp_path)
             except OSError:
                 pass
+            try:
+                conn.sendall(b"ERR could not write file\n")
+            except OSError:
+                pass
             return
-
         seconds = time.perf_counter() - start
         if remaining == 0:
-            os.replace(temp_path, path)
+            try:
+                os.replace(temp_path, path)
+            except OSError:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+                conn.sendall(b"ERR could not save file\n")
+                return
             conn.sendall(b"OK\n")
             done = True
-            print("received", size, "bytes") 
+            print("received", size, "bytes")
             print("took", seconds, "seconds")
         else:
-            os.remove(temp_path)
-            print("upload incomplete, removed", temp_path)
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+            print("Upload incomplete, removed", temp_path)
             return
+            
     finally:
         with files_lock:
             files_in_use.discard(filename)       
